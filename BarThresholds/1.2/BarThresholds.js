@@ -2,7 +2,7 @@
  * BarThresholds
  *
  * Version 1.2
- * Last updated: September 5, 2022
+ * Last updated: September 10, 2022
  * Author: thatblindgeye
  * GitHub: https://github.com/thatblindgeye
  */
@@ -15,7 +15,7 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
 
   const VERSION = "1.2";
-  const LAST_UPDATED = 1662420259332;
+  const LAST_UPDATED = 1662850283168;
   const THRESH_DISPLAY_NAME = `BarThresholds v${VERSION}`;
   const THRESH_CONFIG_NAME = "BarThresholds Config";
 
@@ -40,12 +40,14 @@ const BarThresholds = (function () {
 
   const TARGET_TYPES = {
     ALL: "All tokens",
-    ONLY_SELECTED: "Only selected tokens",
     EXCEPT_SELECTED: "Except selected tokens",
+    ONLY_SELECTED: "Only selected tokens",
+    GM_TOKENS: "GM tokens",
+    PLAYER_TOKENS: "Player tokens",
   };
 
   const FREQUENCY_TYPES = {
-    EVERY_UPDATE: "Every bar value update",
+    VAL_CHANGE: "Every bar value update",
     VAL_DECREASE: "When bar value decreases",
     VAL_INCREASE: "When bar value increases",
   };
@@ -53,8 +55,8 @@ const BarThresholds = (function () {
   const COMPARISON_TYPES = {
     EQUAL: "Equal to",
     GREATER: "Greater than",
-    LESS: "Less than",
     GREATER_EQUAL: "Greater than or equal to",
+    LESS: "Less than",
     LESS_EQUAL: "Less than or equal to",
     GREATER_LESS: "Greater than X and Less than Y",
     GREATER_LESS_EQUAL:
@@ -65,14 +67,16 @@ const BarThresholds = (function () {
     ADD_MARKER: "Add marker(s)",
     REMOVE_MARKER: "Remove marker(s)",
     ADD_REMOVE_MARKER: "Add marker(s) and Remove marker(s)",
-    SCALE: "Change scale",
-    TINT: "Update tint color",
+    LAYER: "Move to layer",
+    REMOVE_TOKEN: "Remove token",
+    FX: "Spawn FX",
     AURA_1: "Update aura 1",
     AURA_2: "Update aura 2",
-    LAYER: "Move to layer",
-    IMGSRC: "Update token image",
-    TOKEN_SIDE: "Update multi-sided/rollable token side",
     BAR: "Update bar value",
+    TOKEN_SIDE: "Update multi-sided/rollable token side",
+    TINT: "Update tint color",
+    IMGSRC: "Update token image",
+    SCALE: "Update token scale",
     COMMAND: "Custom command",
   };
 
@@ -115,6 +119,31 @@ const BarThresholds = (function () {
     {
       name: "dead",
     },
+  ];
+
+  const FX_TYPES = [
+    "bomb",
+    "bubbling",
+    "burn",
+    "burst",
+    "explode",
+    "glow",
+    "missile",
+    "nova",
+  ];
+
+  const FX_COLORS = [
+    "acid",
+    "blood",
+    "charm",
+    "death",
+    "fire",
+    "frost",
+    "holy",
+    "magic",
+    "slime",
+    "smoke",
+    "water",
   ];
 
   const CONFIG_TABS = {
@@ -191,10 +220,6 @@ const BarThresholds = (function () {
   }
 
   function formatHexColor(color) {
-    if (color.length === 7) {
-      return color;
-    }
-
     const colorAsArray = color.replace("#", "").split("");
     const longhandHex = _.map(
       colorAsArray,
@@ -204,13 +229,28 @@ const BarThresholds = (function () {
     return `#${longhandHex}`;
   }
 
+  function checkIsGmToken(token) {
+    const character = getObj("character", token.get("represents"));
+    const controlledBy = character.get("controlledby");
+    const playerIds = controlledBy.split(",");
+
+    if (
+      (!_.contains(playerIds, "all") &&
+        _.every(playerIds, (id) => playerIsGM(id))) ||
+      (playerIds.length === 1 && playerIds[0] === "")
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
   // --------------------------------------------------------------------------
   // Validation Functions
   // --------------------------------------------------------------------------
 
   function validateComparisonValues(type, values) {
     const { EQUAL, GREATER_LESS, GREATER_LESS_EQUAL } = COMPARISON_TYPES;
-    const { COMPARE_VALUES } = THRESHOLD_KEYS;
 
     if (type !== EQUAL) {
       if (values[0].trim() === "" && values.length === 1) {
@@ -251,7 +291,7 @@ const BarThresholds = (function () {
       }
     }
 
-    return { [COMPARE_VALUES]: values };
+    return values;
   }
 
   function validateColor(color) {
@@ -273,14 +313,22 @@ const BarThresholds = (function () {
       TINT,
       AURA_1,
       AURA_2,
+      REMOVE_TOKEN,
       LAYER,
       IMGSRC,
       TOKEN_SIDE,
       BAR,
+      FX,
     } = EFFECT_TYPES;
 
-    if ((values[0] === "" || values[0][0] === "") && values.length === 1) {
-      throw new Error("Effect value(s) cannot be blank.");
+    if (
+      (values[0] === "" || values[0][0] === "") &&
+      values.length === 1 &&
+      type !== REMOVE_TOKEN
+    ) {
+      throw new Error(
+        `Effect value(s) cannot be blank for the <code>${type}</code> effect type.`
+      );
     }
 
     if ([ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER].includes(type)) {
@@ -299,26 +347,28 @@ const BarThresholds = (function () {
           `The following token markers do not exist in the campaign: <code>${invalidMarkers}</code>. When using the <code>${ADD_MARKER}</code>, <code>${REMOVE_MARKER}</code>, or <code>${ADD_REMOVE_MARKER}</code> effect types, you must pass in valid token markers.`
         );
       }
-    }
 
-    if (type === ADD_REMOVE_MARKER) {
-      if (values.length !== 2) {
-        throw new Error(
-          `When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in two values, with the first value being the token(s) to add and the second value being the token(s) to remove.`
-        );
+      if (type === ADD_REMOVE_MARKER) {
+        if (values.length !== 2) {
+          throw new Error(
+            `When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separate list of two values, with the first value being a space separated list of the token(s) to add and the second value being a space separated list of the token(s) to remove.<br/><br/>For example, <code>red yellow, blue green</code> would add the "red" and "yellow" markers, and remove the "blue" and "green" markers.`
+          );
+        }
+
+        if (
+          values.length === 2 &&
+          ((values[0][0] === "" && values[0].length === 1) ||
+            (values[1][0] === "" && values[1].length === 1))
+        ) {
+          throw new Error(
+            `<code>${values[0].join(" ")}, ${values[1].join(
+              " "
+            )}</code> is not a valid effect value. When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separated list of two values and cannot pass in any blank value.<br/><br/>If you only want to add or remove token markers, use the <code>${ADD_MARKER}</code> or <code>${REMOVE_MARKER}</code> effect type instead.`
+          );
+        }
       }
 
-      if (
-        values.length === 2 &&
-        ((values[0][0] === "" && values[0].length === 1) ||
-          (values[1][0] === "" && values[1].length === 1))
-      ) {
-        throw new Error(
-          `<code>${values[0].join(" ")}, ${values[1].join(
-            " "
-          )}</code> is not a valid effect value. When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separated list of two values and cannot pass in any blank value.<br/><br/>If you only want to add or remove token markers, use the <code>${ADD_MARKER}</code> or <code>${REMOVE_MARKER}</code> effect type instead.`
-        );
-      }
+      return values;
     }
 
     if (type === SCALE) {
@@ -334,10 +384,14 @@ const BarThresholds = (function () {
           )}</code><br/><br/>When using the <code>${SCALE}</code> effect type, the value(s) passed in must be either an integer/decimal, an asterisk <code>*</code> followed by an integer/decimal, or an integer/decimal followed by <code>px</code>.`
         );
       }
+
+      return values;
     }
 
     if (type === TINT) {
       validateColor(values[0]);
+
+      return values;
     }
 
     if (type === AURA_1 || type === AURA_2) {
@@ -366,36 +420,50 @@ const BarThresholds = (function () {
           `${values[1]} is not a valid value for the aura shape. You must pass in either <code>square</code> or <code>false</code> or <code>circle</code> as an aura shape value.`
         );
       }
+
+      return values;
     }
 
-    if (type === LAYER && !REGEX.LAYER.test(values[0])) {
-      throw new Error(
-        `<code>${values[0]}</code> is not a valid layer. When using the <code>${LAYER}</code> effect type, you must enter a value of either <code>gm</code>, <code>objects</code>, or <code>map</code>.`
-      );
+    if (type === LAYER) {
+      if (!REGEX.LAYER.test(values[0])) {
+        throw new Error(
+          `<code>${values[0]}</code> is not a valid layer. When using the <code>${LAYER}</code> effect type, you must enter a value of either <code>gm</code>, <code>objects</code>, or <code>map</code>.`
+        );
+      }
+
+      return values;
     }
 
-    if (type === IMGSRC && !REGEX.IMAGE.test(values[0])) {
-      throw new Error(
-        `<code>${values[0]}</code> is not a valid imgsrc. When using the <code>${IMGSRC} effect type, the imgsrc must be the "thumb" version and in a PNG/JPG/JPEG/GIF format.<br/><br/>Call the <code>${COMMANDS.IMAGE}</code> command while the graphic with the desired image is selected on the tabletop to get the correct imgsrc.`
-      );
+    if (type === IMGSRC) {
+      if (!REGEX.IMAGE.test(values[0])) {
+        throw new Error(
+          `<code>${values[0]}</code> is not a valid imgsrc. When using the <code>${IMGSRC}</code> effect type, the imgsrc must be the "thumb" version and in a PNG/JPG/JPEG/GIF format.<br/><br/>To get the "thumb" version of an imgsrc, select the graphic with the desired image on the tabletop and call the <code>${COMMANDS.GET_IMGSRC}</code> command.`
+        );
+      }
+
+      return values;
     }
 
-    if (type === TOKEN_SIDE && !REGEX.NEW_SIDE.test(values[0])) {
-      throw new Error(
-        `<code>${values[0]}</code> is not a valid value. When using the <code>${TOKEN_SIDE}</code> effect type, you must past in an integer, a plus sign <code>+</code>, or a minus sign <code>-</code>.`
-      );
+    if (type === TOKEN_SIDE) {
+      if (!REGEX.NEW_SIDE.test(values[0])) {
+        throw new Error(
+          `<code>${values[0]}</code> is not a valid value. When using the <code>${TOKEN_SIDE}</code> effect type, you must pass in an integer, a plus sign <code>+</code>, or a minus sign <code>-</code>.`
+        );
+      }
+
+      return values;
     }
 
     if (type === BAR) {
       if (values.length !== 2) {
         throw new Error(
-          `When using the <code>${BAR}</code> effect type, you must a comma separated list of two values. The first value must be the bar target, and the second value must be the new value for the bar.`
+          `When using the <code>${BAR}</code> effect type, you must pass in a comma separated list of two values. The first value must be the bar target, and the second value must be the new value of the bar.`
         );
       }
 
       if (!REGEX.BAR_NUMBER.test(values[0])) {
         throw new Error(
-          `<code>${values[0]}</code> is not a valid bar. When using the <code>${BAR}</code> effect type, the first value must be the string "bar" immediately followed by the number 1, 2, or 3.`
+          `<code>${values[0]}</code> is not a valid bar. When using the <code>${BAR}</code> effect type, the first value must be the string <code>bar</code> immediately followed by the number 1, 2, or 3.`
         );
       }
 
@@ -404,9 +472,43 @@ const BarThresholds = (function () {
           `<code>${values[1]}</code> is not a value value. When using the <code>${BAR}</code> effect type, the new value for the bar target must be either a number or string, a plus sign <code>+</code> followed by a number, or a minus sign <code>-</code> followed by a number.`
         );
       }
+
+      return values;
     }
 
-    return values;
+    if (type === FX) {
+      if (/\-/.test(values[0])) {
+        const [fxType, fxColor] = values[0].split("-");
+
+        if (!FX_TYPES.includes(fxType.toLowerCase())) {
+          throw new Error(
+            `<code>${fxType}</code> is not a valid FX type. When using the <code>${FX}</code> effect type, the FX passed in must be one of the following: <code>${FX_TYPES.join(
+              ", "
+            )}</code>.<br/><br/>Currently the <code>beam, breath, and splatter</code> FX types are not supported.`
+          );
+        }
+
+        if (!FX_COLORS.includes(fxColor.toLowerCase())) {
+          throw new Error(
+            `<code>${fxColor}</code> is not a valid FX color. When using the <code>${FX}</code> effect type, the color passed in must be one of the following: <code>${FX_COLORS.join(
+              ", "
+            )}</code>.`
+          );
+        }
+
+        return values;
+      } else {
+        const customFx = findObjs({ _type: "custfx", name: values[0] })[0];
+
+        if (!customFx) {
+          throw new Error(
+            `<code>${values[0]}</code> is not a valid custom FX. Make sure the custom FX exists in the campaign and that the spelling and lettercase is correct.`
+          );
+        }
+
+        return [customFx.id];
+      }
+    }
   }
 
   // --------------------------------------------------------------------------
@@ -415,9 +517,9 @@ const BarThresholds = (function () {
 
   function setThresholdTargets(targets, selectedTokens) {
     const { ONLY_TOKENS, EXCEPT_TOKENS } = THRESHOLD_KEYS;
-    const { ALL, ONLY_SELECTED } = TARGET_TYPES;
+    const { ALL, ONLY_SELECTED, GM_TOKENS, PLAYER_TOKENS } = TARGET_TYPES;
 
-    if (selectedTokens && targets !== ALL) {
+    if (selectedTokens && ![ALL, GM_TOKENS, PLAYER_TOKENS].includes(targets)) {
       const tokenNames = _.map(selectedTokens, (selected) => {
         const token = getObj("graphic", selected._id);
         return token.get("name");
@@ -430,12 +532,18 @@ const BarThresholds = (function () {
       return { [ONLY_TOKENS]: [], [EXCEPT_TOKENS]: tokenNames };
     }
 
+    if ([GM_TOKENS, PLAYER_TOKENS].includes(targets)) {
+      const targetsText = targets === GM_TOKENS ? GM_TOKENS : PLAYER_TOKENS;
+
+      return { [ONLY_TOKENS]: [targetsText], [EXCEPT_TOKENS]: [] };
+    }
+
     return { [ONLY_TOKENS]: [], [EXCEPT_TOKENS]: [] };
   }
 
   function formatEffectValues(effectType, effectValues) {
     const { EFFECT_VALUES } = THRESHOLD_KEYS;
-    const { COMMAND, ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER } =
+    const { COMMAND, ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER, FX } =
       EFFECT_TYPES;
 
     if (effectType === COMMAND) {
@@ -477,7 +585,8 @@ const BarThresholds = (function () {
   }
 
   function createThreshold(selectedTokens, commandArgs) {
-    const { FREQUENCY, COMPARE_TYPE, EFFECT_TYPE } = THRESHOLD_KEYS;
+    const { FREQUENCY, COMPARE_TYPE, COMPARE_VALUES, EFFECT_TYPE } =
+      THRESHOLD_KEYS;
     const [
       ,
       frequency,
@@ -496,7 +605,10 @@ const BarThresholds = (function () {
       [FREQUENCY]: frequency,
       ...setThresholdTargets(targetTokens, selectedTokens),
       [COMPARE_TYPE]: comparisonType,
-      ...validateComparisonValues(comparisonType, compareValueArray),
+      [COMPARE_VALUES]: validateComparisonValues(
+        comparisonType,
+        compareValueArray
+      ),
       [EFFECT_TYPE]: effectType,
       ...formatEffectValues(effectType, effectValues),
     };
@@ -507,7 +619,8 @@ const BarThresholds = (function () {
     selectedTokens,
     commandArgs
   ) {
-    const { FREQUENCY, COMPARE_TYPE, EFFECT_TYPE } = THRESHOLD_KEYS;
+    const { FREQUENCY, COMPARE_TYPE, COMPARE_VALUES, EFFECT_TYPE } =
+      THRESHOLD_KEYS;
 
     switch (propertyToEdit) {
       case "frequency":
@@ -525,7 +638,10 @@ const BarThresholds = (function () {
 
         return {
           [COMPARE_TYPE]: commandArgs[1],
-          ...validateComparisonValues(commandArgs[1], newCompareValues),
+          [COMPARE_VALUES]: validateComparisonValues(
+            commandArgs[1],
+            newCompareValues
+          ),
         };
       case "effect":
         return {
@@ -560,7 +676,7 @@ const BarThresholds = (function () {
     return compareValue;
   }
 
-  function runComparison(bar, token, compareType, compareValues) {
+  function runComparison(bar, prevBarValue, token, compareType, compareValues) {
     const {
       EQUAL,
       GREATER,
@@ -587,30 +703,51 @@ const BarThresholds = (function () {
       case EQUAL:
         return barValue == firstCompareValue;
       case GREATER:
-        return barValue > firstCompareValue;
+        return (
+          barValue > firstCompareValue && !(prevBarValue > firstCompareValue)
+        );
       case LESS:
-        return barValue < firstCompareValue;
+        return (
+          barValue < firstCompareValue && !(prevBarValue < firstCompareValue)
+        );
       case GREATER_EQUAL:
-        return barValue >= firstCompareValue;
+        return (
+          barValue >= firstCompareValue && !(prevBarValue >= firstCompareValue)
+        );
       case LESS_EQUAL:
-        return barValue <= firstCompareValue;
+        return (
+          barValue <= firstCompareValue && !(prevBarValue <= firstCompareValue)
+        );
       case GREATER_LESS:
-        return barValue > firstCompareValue && barValue < secondCompareValue;
+        return (
+          barValue > firstCompareValue &&
+          barValue < secondCompareValue &&
+          !(
+            prevBarValue > firstCompareValue &&
+            prevBarValue < secondCompareValue
+          )
+        );
       case GREATER_LESS_EQUAL:
-        return barValue >= firstCompareValue && barValue <= secondCompareValue;
+        return (
+          barValue >= firstCompareValue &&
+          barValue <= secondCompareValue &&
+          !(
+            prevBarValue >= firstCompareValue &&
+            prevBarValue <= secondCompareValue
+          )
+        );
       default:
         return false;
     }
   }
 
   function setMarkers(token, effectType, markerValues) {
-    let tokenMarkers = token.get("statusmarkers");
+    const currentTokenMarkers = token.get("statusmarkers");
+    let newTokenMarkers = currentTokenMarkers;
 
     if (/add/i.test(effectType)) {
       _.each(markerValues[0], (markerToAdd) => {
-        if (!tokenMarkers.includes(markerToAdd)) {
-          tokenMarkers += `,${markerToAdd}`;
-        }
+        newTokenMarkers += `,${markerToAdd}`;
       });
     }
 
@@ -618,16 +755,16 @@ const BarThresholds = (function () {
       const markerValIndex = /add/i.test(effectType) ? 1 : 0;
 
       _.each(markerValues[markerValIndex], (markerToRemove) => {
-        if (tokenMarkers.includes(markerToRemove)) {
-          tokenMarkers = tokenMarkers
-            .split(/\s*,\s*/)
-            .filter((marker) => marker !== markerToRemove)
-            .join(",");
-        }
+        newTokenMarkers = newTokenMarkers
+          .split(/\s*,\s*/)
+          .filter((marker) => marker !== markerToRemove)
+          .join(",");
       });
     }
 
-    token.set("statusmarkers", tokenMarkers);
+    if (newTokenMarkers !== currentTokenMarkers) {
+      token.set("statusmarkers", newTokenMarkers);
+    }
   }
 
   function setScale(token, scaleValues) {
@@ -652,27 +789,58 @@ const BarThresholds = (function () {
       return currentSize;
     };
 
-    token.set({
-      width: calculateNewSize(widthScale, currentWidth),
-      height: calculateNewSize(heightScale, currentHeight),
-    });
+    const newWidth = calculateNewSize(widthScale, currentWidth);
+    const newHeight = calculateNewSize(heightScale, currentHeight);
+    const dimensionsToSet = {};
+
+    if (newWidth !== currentWidth) {
+      dimensionsToSet.width = newWidth;
+    }
+
+    if (newHeight !== currentHeight) {
+      dimensionsToSet.height = newHeight;
+    }
+
+    if (!_.isEmpty(dimensionsToSet)) {
+      token.set(dimensionsToSet);
+    }
   }
 
   function setAura(token, aura, auraValues) {
-    const auraRadius = auraValues[0] != "0" ? parseFloat(auraValues[0]) : "";
-    const isSquareAura = /^(square)$/i.test(auraValues[1]);
+    const currentAuraRadius = token.get(`${aura}_radius`);
+    const currentIsSquareAura = token.get(`${aura}_square`);
+    const currentColor = token.get(`${aura}_color`);
+    const currentShowPlayers = token.get(`showplayers_${aura}`);
+    const newAuraRadius = auraValues[0] != "0" ? parseFloat(auraValues[0]) : "";
+    const newIsSquareAura = /^(square)$/i.test(auraValues[1]);
+    const newColor =
+      auraValues[2].length === 7
+        ? auraValues[2]
+        : formatHexColor(auraValues[2]);
+    const newShowPlayers = /^true$/i.test(auraValues[3]);
+    const auraToSet = {};
 
-    token.set(`${aura}_radius`, auraRadius);
-    token.set(`${aura}_square`, isSquareAura);
-    token.set(`${aura}_color`, formatHexColor(auraValues[2]));
+    if (newAuraRadius !== currentAuraRadius) {
+      auraToSet[`${aura}_radius`] = newAuraRadius;
+    }
+    if (newIsSquareAura !== currentIsSquareAura) {
+      auraToSet[`${aura}_square`] = newIsSquareAura;
+    }
+    if (newColor !== currentColor) {
+      auraToSet[`${aura}_color`] = newColor;
+    }
+    if (newShowPlayers !== currentShowPlayers) {
+      auraToSet[`showplayers_${aura}`] = newShowPlayers;
+    }
 
-    if (auraValues[3]) {
-      token.set(`showplayers_${aura}`, /^true$/i.test(auraValues[3]));
+    if (!_.isEmpty(auraToSet)) {
+      token.set(auraToSet);
     }
   }
 
   function setLayer(token, layer) {
-    let newLayer;
+    const currentLayer = token.get("layer");
+    let newLayer = "";
 
     if (/gm/i.test(layer)) {
       newLayer = "gmlayer";
@@ -680,11 +848,11 @@ const BarThresholds = (function () {
       newLayer = "objects";
     } else if (/map|background/i.test(layer)) {
       newLayer = "map";
-    } else {
-      newLayer = token.get("layer");
     }
 
-    token.set("layer", newLayer);
+    if (newLayer && newLayer !== currentLayer) {
+      token.set("layer", newLayer);
+    }
   }
 
   function setCurrentTokenSide(token, side) {
@@ -722,20 +890,25 @@ const BarThresholds = (function () {
       return;
     }
 
-    token.set("imgsrc", getCleanImgsrc(tokenSides[sideToGet]));
-    token.set("currentSide", sideToGet);
+    if (sideToGet !== currentSide) {
+      token.set({
+        imgsrc: getCleanImgsrc(tokenSides[sideToGet]),
+        currentSide: sideToGet,
+      });
+    }
   }
 
   function setBarValue(token, barEffectValues) {
     let [barTarget, newBarValue] = barEffectValues;
+    const currentBarValue = token.get(`${barTarget}_value`);
 
     if (/^\+|-/.test(newBarValue)) {
-      const currentBarValue = token.get(`${barTarget}_value`);
-      newBarValue =
-        parseFloat(newBarValue) + parseFloat(currentBarValue || "0");
+      newBarValue = parseFloat(newBarValue) + parseFloat(currentBarValue || 0);
     }
 
-    token.set(`${barTarget}_value`, newBarValue);
+    if (newBarValue !== currentBarValue) {
+      token.set(`${barTarget}_value`, newBarValue);
+    }
   }
 
   function runEffect(token, effectType, effectValues) {
@@ -747,10 +920,12 @@ const BarThresholds = (function () {
       TINT,
       AURA_1,
       AURA_2,
+      REMOVE_TOKEN,
       LAYER,
       IMGSRC,
       TOKEN_SIDE,
       BAR,
+      FX,
       COMMAND,
     } = EFFECT_TYPES;
 
@@ -768,7 +943,15 @@ const BarThresholds = (function () {
         setScale(token, effectValues);
         break;
       case TINT:
-        token.set("tint_color", formatHexColor(effectValues[0]));
+        const currentTint = token.get("tint_color");
+        const newTint =
+          effectValues[0].length === 7
+            ? effectValues[0]
+            : formatHexColor(effectValues[0]);
+
+        if (newTint !== currentTint) {
+          token.set("tint_color", newTint);
+        }
         break;
       case AURA_1:
         setAura(token, "aura1", effectValues);
@@ -776,17 +959,27 @@ const BarThresholds = (function () {
       case AURA_2:
         setAura(token, "aura2", effectValues);
         break;
+      case REMOVE_TOKEN:
+        token.remove();
+        break;
       case LAYER:
         setLayer(token, effectValues[0]);
         break;
       case IMGSRC:
-        token.set("imgsrc", effectValues[0]);
+        const currentImg = token.get("imgsrc");
+
+        if (effectValues[0] !== currentImg) {
+          token.set("imgsrc", effectValues[0]);
+        }
         break;
       case TOKEN_SIDE:
         setCurrentTokenSide(token, effectValues[0]);
         break;
       case BAR:
         setBarValue(token, effectValues);
+        break;
+      case FX:
+        spawnFx(token.get("left"), token.get("top"), effectValues[0]);
         break;
       case COMMAND:
         sendChat("", effectValues[0], null, { noarchive: true });
@@ -797,6 +990,7 @@ const BarThresholds = (function () {
   }
 
   function runThresholds(bar, tokenObj, prevBarValue) {
+    const { GM_TOKENS, PLAYER_TOKENS } = TARGET_TYPES;
     const { VAL_INCREASE, VAL_DECREASE } = FREQUENCY_TYPES;
     const {
       FREQUENCY,
@@ -817,19 +1011,24 @@ const BarThresholds = (function () {
       const token = getObj("graphic", tokenId);
       const tokenName = token.get("name");
       const tokenBarValue = token.get(`${bar}_value`);
+      const isGmToken = checkIsGmToken(token);
+      const parsedPrevBarValue = parseFloat(prevBarValue);
 
       if (
         (threshold[FREQUENCY] === VAL_INCREASE &&
-          !(parseFloat(tokenBarValue) > parseFloat(prevBarValue))) ||
+          !(parseFloat(tokenBarValue) > parsedPrevBarValue)) ||
         (threshold[FREQUENCY] === VAL_DECREASE &&
-          !(parseFloat(tokenBarValue) < parseFloat(prevBarValue)))
+          !(parseFloat(tokenBarValue) < parsedPrevBarValue))
       ) {
         return;
       }
 
       if (
+        (!isGmToken && threshold[ONLY_TOKENS][0] === GM_TOKENS) ||
+        (isGmToken && threshold[ONLY_TOKENS][0] === PLAYER_TOKENS) ||
         _.contains(threshold[EXCEPT_TOKENS], tokenName) ||
         (threshold[ONLY_TOKENS].length &&
+          ![GM_TOKENS, PLAYER_TOKENS].includes(threshold[ONLY_TOKENS][0]) &&
           !_.contains(threshold[ONLY_TOKENS], tokenName))
       ) {
         return;
@@ -838,6 +1037,7 @@ const BarThresholds = (function () {
       if (
         !runComparison(
           bar,
+          parsedPrevBarValue,
           token,
           threshold[COMPARE_TYPE],
           threshold[COMPARE_VALUES]
@@ -891,30 +1091,17 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
 
   function createQueryStrings(command, bar) {
-    let frequencyQuery = "?{Threshold frequency";
-    _.each(FREQUENCY_TYPES, (frequencyTypeValue) => {
-      frequencyQuery += `|${frequencyTypeValue}`;
-    });
+    const frequencyQuery =
+      "?{Threshold frequency|" + _.values(FREQUENCY_TYPES).join("|") + "}";
 
-    let targetsQuery = "?{Threshold targets";
-    _.each(TARGET_TYPES, (targetTypeValue) => {
-      targetsQuery += `|${targetTypeValue}`;
-    });
+    const targetsQuery =
+      "?{Threshold targets|" + _.values(TARGET_TYPES).join("|") + "}";
 
-    let comparisonTypeQuery = "?{Comparison type";
-    _.each(COMPARISON_TYPES, (comparisonTypeValue) => {
-      comparisonTypeQuery += `|${comparisonTypeValue}`;
-    });
+    const comparisonTypeQuery =
+      "?{Comparison type|" + _.values(COMPARISON_TYPES).join("|") + "}";
 
-    let effectTypeQuery = "?{Effect type";
-    _.each(EFFECT_TYPES, (effectTypeValue) => {
-      effectTypeQuery += `|${effectTypeValue}`;
-    });
-
-    frequencyQuery += "}";
-    targetsQuery += "}";
-    comparisonTypeQuery += "}";
-    effectTypeQuery += "}";
+    const effectTypeQuery =
+      "?{Effect type|" + _.values(EFFECT_TYPES).join("|") + "}";
 
     return {
       frequencyQuery,
@@ -991,64 +1178,113 @@ const BarThresholds = (function () {
           <p>When using the <code>runThresholds</code> method, you must pass in two parameters: a <code>bar</code> and a <code>tokenID</code>. The<code>bar</code> parameter determines which bar thresholds to run and must be a value of either "bar1", "bar2", or "bar3". The <code>tokenID</code> parameter determines whether the token with that ID is a valid threshold target. This can either be manually passed in as a string, e.g. <code>"-N8u_AM_kks6if4OUmhT"</code>, or it can be passed in by accessing the <code>id</code> property on an object, e.g. <code>obj.id</code>.</p>`;
   }
 
-  function createTargetsCardItem(threshold) {
-    const { ALL, ONLY_SELECTED, EXCEPT_SELECTED } = TARGET_TYPES;
+  function createTargetsCardText(threshold) {
+    const { ALL, ONLY_SELECTED, EXCEPT_SELECTED, GM_TOKENS, PLAYER_TOKENS } =
+      TARGET_TYPES;
     const { ONLY_TOKENS, EXCEPT_TOKENS } = THRESHOLD_KEYS;
     let targetsText;
-    let targetsList;
+    let targetsList = [];
 
     if (
       _.isEmpty(threshold[ONLY_TOKENS]) &&
       _.isEmpty(threshold[EXCEPT_TOKENS])
     ) {
       targetsText = ALL;
-      targetsList = [];
     } else {
-      const targetsArray = !_.isEmpty(threshold[ONLY_TOKENS])
-        ? threshold[ONLY_TOKENS]
-        : threshold[EXCEPT_TOKENS];
-      targetsList = _.map(targetsArray, (target) => target);
-
-      targetsText = !_.isEmpty(threshold[ONLY_TOKENS])
-        ? ONLY_SELECTED
-        : EXCEPT_SELECTED;
+      if (threshold[ONLY_TOKENS][0] === GM_TOKENS) {
+        targetsText = GM_TOKENS;
+      } else if (threshold[ONLY_TOKENS][0] === PLAYER_TOKENS) {
+        targetsText = PLAYER_TOKENS;
+      } else {
+        const targetsArray = !_.isEmpty(threshold[ONLY_TOKENS])
+          ? threshold[ONLY_TOKENS]
+          : threshold[EXCEPT_TOKENS];
+        targetsList = _.map(targetsArray, (target) => target);
+        targetsText =
+          (!_.isEmpty(threshold[ONLY_TOKENS])
+            ? ONLY_SELECTED
+            : EXCEPT_SELECTED) + ": ";
+      }
     }
 
-    return { targetsText, targetsList };
+    return `${targetsText}${targetsList ? ": " + targetsList.join(", ") : ""}`;
   }
 
-  function createEffectValueCardItem(threshold, effectType) {
+  function createComparisonCardText(threshold, compareType) {
+    const { COMPARE_VALUES } = THRESHOLD_KEYS;
+    const {
+      EQUAL,
+      GREATER,
+      LESS,
+      GREATER_EQUAL,
+      LESS_EQUAL,
+      GREATER_LESS,
+      GREATER_LESS_EQUAL,
+    } = COMPARISON_TYPES;
+
+    switch (compareType) {
+      case EQUAL:
+      case GREATER:
+      case GREATER_EQUAL:
+      case LESS:
+      case LESS_EQUAL:
+        return `${compareType} ${threshold[COMPARE_VALUES][0]}`;
+      case GREATER_LESS:
+      case GREATER_LESS_EQUAL:
+        const textWithValues = compareType.replace(/[xy]/gi, (match) => {
+          if (/x/i.test(match)) {
+            return threshold[COMPARE_VALUES][0];
+          }
+
+          return threshold[COMPARE_VALUES][1];
+        });
+
+        return textWithValues;
+    }
+  }
+
+  function createEffectValueCardText(threshold, effectType) {
     const { EFFECT_VALUES } = THRESHOLD_KEYS;
-    const { ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER, AURA_1, AURA_2 } =
-      EFFECT_TYPES;
+    const {
+      ADD_MARKER,
+      REMOVE_MARKER,
+      ADD_REMOVE_MARKER,
+      AURA_1,
+      AURA_2,
+      REMOVE_TOKEN,
+      BAR,
+    } = EFFECT_TYPES;
 
     switch (effectType) {
       case ADD_MARKER:
       case REMOVE_MARKER:
-        return `${threshold[EFFECT_VALUES][0].join(", ")}`;
+        return `${effectType}: ${threshold[EFFECT_VALUES][0].join(", ")}`;
       case ADD_REMOVE_MARKER:
-        return `<span style="font-weight: bold">Add:</span> ${threshold[
-          EFFECT_VALUES
-        ][0].join(
+        return `Add marker(s): ${threshold[EFFECT_VALUES][0].join(
           " "
-        )}, <span style="font-weight: bold">Remove:</span> ${threshold[
+        )}<span style="${thresholdCardSeparatorCSS}">Remove marker(s): ${threshold[
           EFFECT_VALUES
-        ][1].join(" ")}`;
+        ][1].join(" ")}</span>`;
       case AURA_1:
       case AURA_2:
-        return `<span style="font-weight: bold">Radius:</span> ${
+        const auraNumber = effectType.includes("1") ? 1 : 2;
+        return `Aura ${auraNumber} Radius: ${
           threshold[EFFECT_VALUES][0]
-        }<span style="${thresholdCardSeparatorCSS}"><span style="font-weight: bold">Shape:</span> ${
+        }<span style="${thresholdCardSeparatorCSS}">Aura ${auraNumber} Shape: ${
           threshold[EFFECT_VALUES][1]
-        }</span><span style="${thresholdCardSeparatorCSS}"><span style="font-weight: bold">Color:</span> ${
+        }</span><span style="${thresholdCardSeparatorCSS}">Aura ${auraNumber} Color: ${
           threshold[EFFECT_VALUES][2]
-        }</span><span style="${thresholdCardSeparatorCSS}">${
+        }</span><span style="${thresholdCardSeparatorCSS}">Aura ${auraNumber} ${
           threshold[EFFECT_VALUES][3]
-            ? "Visible to players"
-            : "Not visible to players"
+            ? "visible to players"
+            : "not visible to players"
         }</span>`;
+      case REMOVE_TOKEN:
+        return REMOVE_TOKEN;
+      case BAR:
+        return `Update ${threshold[EFFECT_VALUES][0]} value: ${threshold[EFFECT_VALUES][1]}`;
       default:
-        return threshold[EFFECT_VALUES].join(", ");
+        return `${effectType}: ${threshold[EFFECT_VALUES].join(", ")}`;
     }
   }
 
@@ -1062,30 +1298,21 @@ const BarThresholds = (function () {
     const { FREQUENCY, COMPARE_TYPE, COMPARE_VALUES, EFFECT_TYPE } =
       THRESHOLD_KEYS;
 
-    const { targetsText, targetsList } = createTargetsCardItem(threshold);
-    const effectValueText = createEffectValueCardItem(
+    const targetsText = createTargetsCardText(threshold);
+    const comparisonText = createComparisonCardText(
+      threshold,
+      threshold[COMPARE_TYPE]
+    );
+    const effectValueText = createEffectValueCardText(
       threshold,
       threshold[EFFECT_TYPE]
     );
 
     return (
-      `<li style="${thresholdCardCSS}"><div><a href="!thresh ${
-        COMMANDS.EDIT_THRESHOLD
-      }-${index}-frequency|${bar}|${frequencyQuery}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Threshold Frequency</a><span>${
-        threshold[FREQUENCY]
-      }</span></div><div style="margin-top: 10px"><a href="!thresh ${
-        COMMANDS.EDIT_THRESHOLD
-      }-${index}-targets|${bar}|${targetsQuery}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Threshold Targets</a><span>${targetsText}</span><span style="${thresholdCardSeparatorCSS}">${targetsList.join(
-        ", "
-      )}</span></div>` +
-      `<div style="margin-top: 10px"><a href="!thresh ${
-        COMMANDS.EDIT_THRESHOLD
-      }-${index}-comparison|${bar}|${comparisonTypeQuery}|?{Comparison value(s)}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Comparison</a><span>${
-        threshold[COMPARE_TYPE]
-      }</span><span style="${thresholdCardSeparatorCSS}">${threshold[
-        COMPARE_VALUES
-      ].join(", ")}</span></div>` +
-      `<div style="margin-top: 10px"><a href="!thresh ${COMMANDS.EDIT_THRESHOLD}-${index}-effect|${bar}|${effectTypeQuery}|?{Effect value(s)}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Effect</a><span>${threshold[EFFECT_TYPE]}</span><span style="${thresholdCardSeparatorCSS}">${effectValueText}</span></div>` +
+      `<li style="${thresholdCardCSS}"><div><a href="!thresh ${COMMANDS.EDIT_THRESHOLD}-${index}-frequency|${bar}|${frequencyQuery}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Threshold Frequency</a><span>${threshold[FREQUENCY]}</span></div>` +
+      `<div style="margin-top: 10px"><a href="!thresh ${COMMANDS.EDIT_THRESHOLD}-${index}-targets|${bar}|${targetsQuery}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Threshold Targets</a><span>${targetsText}</span></div>` +
+      `<div style="margin-top: 10px"><a href="!thresh ${COMMANDS.EDIT_THRESHOLD}-${index}-comparison|${bar}|${comparisonTypeQuery}|?{Comparison value(s)}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Comparison</a><span>${comparisonText}</span></div>` +
+      `<div style="margin-top: 10px"><a href="!thresh ${COMMANDS.EDIT_THRESHOLD}-${index}-effect|${bar}|${effectTypeQuery}|?{Effect value(s)}" style="${thresholdCardHeaderCSS}; ${thresholdCardButtonCSS}">Effect</a><span>${effectValueText}</span></div>` +
       `<div style="margin-top: 25px;"><a href="!thresh ${COMMANDS.DELETE_THRESHOLD}-${index}|${bar}|?{Confirm deletion|Cancel|Confirm}" style="color: red; ${thresholdCardButtonCSS}">Delete threshold</a></div></li>`
     );
   }
@@ -1156,7 +1383,7 @@ const BarThresholds = (function () {
       } = COMMANDS;
       const { THRESHOLDS } = CONFIG_TABS;
       const [prefix, ...commandArgs] = message.content.split(/\|/g);
-      let [keyword, editOrDeleteIndex, propertyToEdit] = prefix
+      const [keyword, editOrDeleteIndex, propertyToEdit] = prefix
         .split(/!thresh\s*|-/i)
         .filter((item) => item !== "");
 
@@ -1188,7 +1415,7 @@ const BarThresholds = (function () {
           buildConfigTab(THRESHOLDS);
           break;
         case DELETE_THRESHOLD:
-          if (commandArgs[1] !== "Confirm") {
+          if (commandArgs[1].toLowerCase() !== "confirm") {
             return;
           }
           const barStateAfterDelete = _.filter(
@@ -1210,7 +1437,9 @@ const BarThresholds = (function () {
             const token = getObj("graphic", selected._id);
             sendChat(
               THRESH_DISPLAY_NAME,
-              `/w gm ${getCleanImgsrc(token.get("imgsrc"))}`,
+              `/w gm <div><div>${token.get("name")}</div>${getCleanImgsrc(
+                token.get("imgsrc")
+              )}</div>`,
               null,
               { noarchive: true }
             );
