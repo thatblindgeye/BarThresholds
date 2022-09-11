@@ -2,7 +2,7 @@
  * BarThresholds
  *
  * Version 1.2
- * Last updated: September 10, 2022
+ * Last updated: September 11, 2022
  * Author: thatblindgeye
  * GitHub: https://github.com/thatblindgeye
  */
@@ -10,12 +10,14 @@
 const BarThresholds = (function () {
   "use strict";
 
+  const campaignMarkers = [];
+
   // --------------------------------------------------------------------------
   // Constant Variables
   // --------------------------------------------------------------------------
 
   const VERSION = "1.2";
-  const LAST_UPDATED = 1662850283168;
+  const LAST_UPDATED = 1662919263984;
   const THRESH_DISPLAY_NAME = `BarThresholds v${VERSION}`;
   const THRESH_CONFIG_NAME = "BarThresholds Config";
 
@@ -332,14 +334,12 @@ const BarThresholds = (function () {
     }
 
     if ([ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER].includes(type)) {
-      const campaignMarkers = [
-        ...JSON.parse(Campaign().get("token_markers")),
-        ...ROLL20_MARKERS,
-      ];
-
       const invalidMarkers = _.filter(
         _.flatten(values),
-        (tokenValue) => !_.findWhere(campaignMarkers, { name: tokenValue })
+        (tokenValue) =>
+          !_.findWhere(campaignMarkers, {
+            name: tokenValue,
+          })
       ).join(", ");
 
       if (invalidMarkers) {
@@ -543,7 +543,7 @@ const BarThresholds = (function () {
 
   function formatEffectValues(effectType, effectValues) {
     const { EFFECT_VALUES } = THRESHOLD_KEYS;
-    const { COMMAND, ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER, FX } =
+    const { COMMAND, ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER } =
       EFFECT_TYPES;
 
     if (effectType === COMMAND) {
@@ -563,19 +563,27 @@ const BarThresholds = (function () {
     }
 
     const splitEffectValues = effectValues
-      .split(/\s*,\s*/)
+      .split(/\s*\&\s*/)
       .map((effectValue) => trimWhitespace(effectValue));
 
     if ([ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER].includes(effectType)) {
-      const formattedEffectValues = _.map(splitEffectValues, (effectValue) =>
-        effectValue.split(/\s+/)
+      const splitMarkerArrays = _.map(splitEffectValues, (effectValue) =>
+        effectValue.split(/\s*,\s*/)
+      );
+
+      const markersByTag = validateEffectValues(
+        effectType,
+        splitMarkerArrays
+      ).map((markerArray) =>
+        markerArray.map((marker) => {
+          const markerObj = _.findWhere(campaignMarkers, { name: marker });
+
+          return markerObj.tag || markerObj.name;
+        })
       );
 
       return {
-        [EFFECT_VALUES]: validateEffectValues(
-          effectType,
-          formattedEffectValues
-        ),
+        [EFFECT_VALUES]: markersByTag,
       };
     }
 
@@ -1261,10 +1269,10 @@ const BarThresholds = (function () {
         return `${effectType}: ${threshold[EFFECT_VALUES][0].join(", ")}`;
       case ADD_REMOVE_MARKER:
         return `Add marker(s): ${threshold[EFFECT_VALUES][0].join(
-          " "
+          ", "
         )}<span style="${thresholdCardSeparatorCSS}">Remove marker(s): ${threshold[
           EFFECT_VALUES
-        ][1].join(" ")}</span>`;
+        ][1].join(", ")}</span>`;
       case AURA_1:
       case AURA_2:
         const auraNumber = effectType.includes("1") ? 1 : 2;
@@ -1482,6 +1490,11 @@ const BarThresholds = (function () {
       state.BarThresholds.currentTab = CONFIG_TABS.INSTRUCTIONS;
       buildConfigTab(CONFIG_TABS.INSTRUCTIONS);
     }
+
+    campaignMarkers.push(
+      ...JSON.parse(Campaign().get("token_markers")),
+      ...ROLL20_MARKERS
+    );
   }
 
   function checkInstall() {
