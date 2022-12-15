@@ -2,7 +2,7 @@
  * BarThresholds
  *
  * Version 1.2
- * Last updated: September 11, 2022
+ * Last updated: December 15, 2022
  * Author: thatblindgeye
  * GitHub: https://github.com/thatblindgeye
  */
@@ -17,7 +17,7 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
 
   const VERSION = "1.2";
-  const LAST_UPDATED = 1662919263984;
+  const LAST_UPDATED = 1671108520274;
   const THRESH_DISPLAY_NAME = `BarThresholds v${VERSION}`;
   const THRESH_CONFIG_NAME = "BarThresholds Config";
 
@@ -221,6 +221,34 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
   // Helper Functions
   // --------------------------------------------------------------------------
+
+  function getMacroByName(macroName) {
+    return findObjs(
+      { _type: "macro", name: macroName },
+      { caseInsensitive: true }
+    );
+  }
+
+  function createMacros() {
+    const gmPlayers = _.filter(
+      findObjs({
+        _type: "player",
+      }),
+      (player) => playerIsGM(player.get("_id"))
+    );
+
+    const getImgsrcName = "Thresh-Get-Imgsrc";
+    const currentGetImgsrcMacro = getMacroByName(getImgsrcName);
+
+    if (!currentGetImgsrcMacro.length) {
+      createObj("macro", {
+        _playerid: gmPlayers[0].get("_id"),
+        name: getImgsrcName,
+        action: "!thresh image",
+        visibleto: _.pluck(gmPlayers, "id").join(","),
+      });
+    }
+  }
 
   function trimWhitespace(str) {
     return str.trim().replace(/&nbsp;|\s{2,}/g, (match) => {
@@ -1544,6 +1572,8 @@ const BarThresholds = (function () {
     if (!_.has(state, "BarThresholds")) {
       log("Installing " + THRESH_DISPLAY_NAME);
       state.BarThresholds = JSON.parse(JSON.stringify(DEFAULT_STATE));
+      createMacros();
+      log("Thresh-Get-Imgsrc macro created...");
     } else if (state.BarThresholds.version !== VERSION) {
       log("Updating to " + THRESH_DISPLAY_NAME);
 
@@ -1561,7 +1591,7 @@ const BarThresholds = (function () {
         LAST_UPDATED
       ).toLocaleDateString("en-US", {
         dateStyle: "long",
-      })}.`
+      })}. Visit the Journal tab for the BarThresholds Config character.`
     );
   }
 
