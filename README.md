@@ -36,7 +36,7 @@ This dialog determines which tokens a threshold will affect when it runs. The po
 - **GM Tokens**: The threshold will affect only tokens controlled by the GM. This includes tokens that do not have any players listed in the "Can Be Edited & Controlled By" field.
 - **Player Tokens**: The threshold will affect only tokens controlled by at least one non-GM player, or by "all players".
 
-When choosing the "Only selected tokens" or "Except selected tokens" option, the selected tokens are determined after clicking "Submit" on the final "Effect value(s)" step.
+When choosing the "Only selected tokens" or "Except selected tokens" option, the selected tokens' names are stored in the threshold data. These names are used to check whether a token is a valid target when the threshold runs.
 
 ### Comparison Type
 

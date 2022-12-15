@@ -154,7 +154,44 @@ const BarThresholds = (function () {
   };
 
   const DEFAULT_STATE = {
-    bar1: [],
+    bar1: [
+      {
+        frequency: FREQUENCY_TYPES.VAL_CHANGE,
+        onlyTokens: [],
+        exceptTokens: [],
+        comparisonType: COMPARISON_TYPES.GREATER,
+        comparisonValues: ["50%"],
+        effectType: EFFECT_TYPES.ADD_REMOVE_MARKER,
+        effectValues: [["green"], ["dead", "red", "yellow"]],
+      },
+      {
+        frequency: FREQUENCY_TYPES.VAL_CHANGE,
+        onlyTokens: [],
+        exceptTokens: [],
+        comparisonType: COMPARISON_TYPES.GREATER_LESS_EQUAL,
+        comparisonValues: ["25%", "50%"],
+        effectType: EFFECT_TYPES.ADD_REMOVE_MARKER,
+        effectValues: [["yellow"], ["dead", "red", "green"]],
+      },
+      {
+        frequency: FREQUENCY_TYPES.VAL_CHANGE,
+        onlyTokens: [],
+        exceptTokens: [],
+        comparisonType: COMPARISON_TYPES.GREATER_LESS,
+        comparisonValues: ["0", "25%"],
+        effectType: EFFECT_TYPES.ADD_REMOVE_MARKER,
+        effectValues: [["red"], ["dead", "yellow", "green"]],
+      },
+      {
+        frequency: FREQUENCY_TYPES.VAL_CHANGE,
+        onlyTokens: [],
+        exceptTokens: [],
+        comparisonType: COMPARISON_TYPES.LESS_EQUAL,
+        comparisonValues: ["0"],
+        effectType: EFFECT_TYPES.ADD_REMOVE_MARKER,
+        effectValues: [["dead"], ["red", "yellow", "green"]],
+      },
+    ],
     bar2: [],
     bar3: [],
     configId: "",
@@ -219,9 +256,13 @@ const BarThresholds = (function () {
         (parts[4] ? parts[4] : `?${Math.round(Math.random() * 9999999)}`)
       );
     }
+
+    throw new Error(
+      `The selected token does not have a valid image source. A token's image cannot be the default image, and the selected token cannot be one that was purchased on the Roll20 marketplace.`
+    );
   }
 
-  function formatHexColor(color) {
+  function getLonghandHex(color) {
     const colorAsArray = color.replace("#", "").split("");
     const longhandHex = _.map(
       colorAsArray,
@@ -233,36 +274,37 @@ const BarThresholds = (function () {
 
   function checkIsGmToken(token) {
     const character = getObj("character", token.get("represents"));
+    if (!character) {
+      // Means a token not linked to a character is used, so we want to assume
+      // the token is being used by the GM.
+      return true;
+    }
     const controlledBy = character.get("controlledby");
     const playerIds = controlledBy.split(",");
 
-    if (
+    return (
       (!_.contains(playerIds, "all") &&
         _.every(playerIds, (id) => playerIsGM(id))) ||
       (playerIds.length === 1 && playerIds[0] === "")
-    ) {
-      return true;
-    }
-
-    return false;
+    );
   }
 
   // --------------------------------------------------------------------------
   // Validation Functions
   // --------------------------------------------------------------------------
 
-  function validateComparisonValues(type, values) {
+  function validateComparisonValues(type, compareValues) {
     const { EQUAL, GREATER_LESS, GREATER_LESS_EQUAL } = COMPARISON_TYPES;
 
     if (type !== EQUAL) {
-      if (values[0].trim() === "" && values.length === 1) {
+      if (compareValues[0].trim() === "" && compareValues.length === 1) {
         throw new Error(
           `When using a comparison type other than <code>${EQUAL}</code>, the comparison value(s) cannot be blank.`
         );
       }
 
       const invalidValues = _.filter(
-        values,
+        compareValues,
         (value) => isNaN(parseFloat(value)) || !REGEX.INT_OR_PERCENT.test(value)
       ).join(", ");
 
@@ -273,27 +315,27 @@ const BarThresholds = (function () {
       }
     }
 
-    if (type === GREATER_LESS && values[0] === values[1]) {
+    if (type === GREATER_LESS && compareValues[0] === compareValues[1]) {
       throw new Error(
-        `When using the <code>${GREATER_LESS}</code> comparison types, the values passed in cannot be the same value. A threshold will not trigger because a bar value cannot be both greater than ${values[0]} and less than ${values[1]}.`
+        `When using the <code>${GREATER_LESS}</code> comparison types, the values passed in cannot be the same value. A threshold will not trigger because a bar value cannot be both greater than ${compareValues[0]} and less than ${compareValues[1]}.`
       );
     }
 
     if (type === GREATER_LESS || type === GREATER_LESS_EQUAL) {
-      if (values.length !== 2) {
+      if (compareValues.length !== 2) {
         throw new Error(
           `When using the <code>${GREATER_LESS}</code> or <code>${GREATER_LESS_EQUAL}</code> comparison types you must pass in two values, with the first value being the "greater than..." comparison value and the second value being the "less than..." comparison value.`
         );
       }
 
-      if (parseFloat(values[0]) > parseFloat(values[1])) {
+      if (parseFloat(compareValues[0]) > parseFloat(compareValues[1])) {
         throw new Error(
-          `When using the <code>${GREATER_LESS}</code> or <code>${GREATER_LESS_EQUAL}</code> comparison types, the first value passed in (the "greater..." comparison value) must be smaller than the second value passed in (the "less..." comparison value). A threshold will not trigger because a bar value cannot be both greater than (or equal to) <code>${values[0]}</code> and less than (or equal to) <code>${values[1]}</code>.`
+          `When using the <code>${GREATER_LESS}</code> or <code>${GREATER_LESS_EQUAL}</code> comparison types, the first value passed in (the "greater..." comparison value) must be smaller than the second value passed in (the "less..." comparison value). A threshold will not trigger because a bar value cannot be both greater than (or equal to) <code>${compareValues[0]}</code> and less than (or equal to) <code>${compareValues[1]}</code>.`
         );
       }
     }
 
-    return values;
+    return compareValues;
   }
 
   function validateColor(color) {
@@ -306,7 +348,7 @@ const BarThresholds = (function () {
     return color;
   }
 
-  function validateEffectValues(type, values) {
+  function validateEffectValues(type, effectValues) {
     const {
       ADD_MARKER,
       REMOVE_MARKER,
@@ -324,8 +366,8 @@ const BarThresholds = (function () {
     } = EFFECT_TYPES;
 
     if (
-      (values[0] === "" || values[0][0] === "") &&
-      values.length === 1 &&
+      (effectValues[0] === "" || effectValues[0][0] === "") &&
+      effectValues.length === 1 &&
       type !== REMOVE_TOKEN
     ) {
       throw new Error(
@@ -335,45 +377,40 @@ const BarThresholds = (function () {
 
     if ([ADD_MARKER, REMOVE_MARKER, ADD_REMOVE_MARKER].includes(type)) {
       const invalidMarkers = _.filter(
-        _.flatten(values),
-        (tokenValue) =>
+        _.flatten(effectValues),
+        (effectValue) =>
           !_.findWhere(campaignMarkers, {
-            name: tokenValue,
+            name: effectValue,
           })
-      ).join(", ");
+      );
 
-      if (invalidMarkers) {
+      if (invalidMarkers.length) {
         throw new Error(
-          `The following token markers do not exist in the campaign: <code>${invalidMarkers}</code>. When using the <code>${ADD_MARKER}</code>, <code>${REMOVE_MARKER}</code>, or <code>${ADD_REMOVE_MARKER}</code> effect types, you must pass in valid token markers.`
+          `The following token markers do not exist in the campaign: <code>${invalidMarkers.join(
+            ", "
+          )}</code>. When using the <code>${type}</code> effect type, you must pass in valid token markers.`
         );
       }
 
-      if (type === ADD_REMOVE_MARKER) {
-        if (values.length !== 2) {
-          throw new Error(
-            `When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separate list of two values, with the first value being a space separated list of the token(s) to add and the second value being a space separated list of the token(s) to remove.<br/><br/>For example, <code>red yellow, blue green</code> would add the "red" and "yellow" markers, and remove the "blue" and "green" markers.`
-          );
-        }
-
-        if (
-          values.length === 2 &&
-          ((values[0][0] === "" && values[0].length === 1) ||
-            (values[1][0] === "" && values[1].length === 1))
-        ) {
-          throw new Error(
-            `<code>${values[0].join(" ")}, ${values[1].join(
-              " "
-            )}</code> is not a valid effect value. When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separated list of two values and cannot pass in any blank value.<br/><br/>If you only want to add or remove token markers, use the <code>${ADD_MARKER}</code> or <code>${REMOVE_MARKER}</code> effect type instead.`
-          );
-        }
+      if (
+        type === ADD_REMOVE_MARKER &&
+        (effectValues.length !== 2 ||
+          (effectValues[0][0] === "" && effectValues[0].length === 1) ||
+          (effectValues[1][0] === "" && effectValues[1].length === 1))
+      ) {
+        throw new Error(
+          `<code>${effectValues[0].join(" ")}, ${effectValues[1].join(
+            " "
+          )}</code> is not a valid effect value. When using the <code>${ADD_REMOVE_MARKER}</code> effect type, you must pass in a comma separated list of two values, with the first value being a space separated list of the token(s) to add and the second value being a space separated list of the token(s) to remove.<br/><br/>For example, <code>red yellow, blue green</code> would add the "red" and "yellow" markers, and remove the "blue" and "green" markers.`
+        );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === SCALE) {
       const invalidScaleValues = _.filter(
-        values,
+        effectValues,
         (scaleValue) => !REGEX.SCALE.test(scaleValue)
       );
 
@@ -385,100 +422,100 @@ const BarThresholds = (function () {
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === TINT) {
-      validateColor(values[0]);
+      validateColor(effectValues[0]);
 
-      return values;
+      return effectValues;
     }
 
     if (type === AURA_1 || type === AURA_2) {
-      validateColor(values[2]);
+      validateColor(effectValues[2]);
 
-      if (values[3] && !REGEX.BOOLEAN.test(values[3])) {
+      if (effectValues[3] && !REGEX.BOOLEAN.test(effectValues[3])) {
         throw new Error(
-          `${values[3]} is not a valid boolean value. When passing in the optional parameter for showing an aura to players, you must pass in a valid boolean value of <code>true</code> or <code>false</code>.`
+          `${effectValues[3]} is not a valid boolean value. When passing in the optional parameter for showing an aura to players, you must pass in a valid boolean value of <code>true</code> or <code>false</code>.`
         );
       }
 
-      if (values.length < 3 && parseInt(values[0]) !== 0) {
+      if (effectValues.length < 3 && parseInt(effectValues[0]) !== 0) {
         throw new Error(
           `When using the <code>${AURA_1}</code> or <code>${AURA_2}</code> effect types, you must either pass in a comma separated list of values formatted as <code>radius, shape, color, optional boolean to show the aura to players</code>, or <code>0</code> to turn the aura off.`
         );
       }
 
-      if (!REGEX.AURA_RADIUS.test(values[0])) {
+      if (!REGEX.AURA_RADIUS.test(effectValues[0])) {
         throw new Error(
-          `${values[0]} is not a valid value for the aura radius. Aura radius must be a positive integer, e.g. <code>5</code>, or <code>0</code> to remove the aura.`
+          `${effectValues[0]} is not a valid value for the aura radius. Aura radius must be a positive integer, e.g. <code>5</code>, or <code>0</code> to remove the aura.`
         );
       }
 
-      if (!REGEX.AURA_SHAPE.test(values[1].trim())) {
+      if (!REGEX.AURA_SHAPE.test(effectValues[1].trim())) {
         throw new Error(
-          `${values[1]} is not a valid value for the aura shape. You must pass in either <code>square</code> or <code>false</code> or <code>circle</code> as an aura shape value.`
+          `${effectValues[1]} is not a valid value for the aura shape. You must pass in either <code>square</code> or <code>false</code> or <code>circle</code> as an aura shape value.`
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === LAYER) {
-      if (!REGEX.LAYER.test(values[0])) {
+      if (!REGEX.LAYER.test(effectValues[0])) {
         throw new Error(
-          `<code>${values[0]}</code> is not a valid layer. When using the <code>${LAYER}</code> effect type, you must enter a value of either <code>gm</code>, <code>objects</code>, or <code>map</code>.`
+          `<code>${effectValues[0]}</code> is not a valid layer. When using the <code>${LAYER}</code> effect type, you must enter a value of either <code>gm</code>, <code>objects</code>, or <code>map</code>.`
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === IMGSRC) {
-      if (!REGEX.IMAGE.test(values[0])) {
+      if (!REGEX.IMAGE.test(effectValues[0])) {
         throw new Error(
-          `<code>${values[0]}</code> is not a valid imgsrc. When using the <code>${IMGSRC}</code> effect type, the imgsrc must be the "thumb" version and in a PNG/JPG/JPEG/GIF format.<br/><br/>To get the "thumb" version of an imgsrc, select the graphic with the desired image on the tabletop and call the <code>${COMMANDS.GET_IMGSRC}</code> command.`
+          `<code>${effectValues[0]}</code> is not a valid imgsrc. When using the <code>${IMGSRC}</code> effect type, the imgsrc must be the "thumb" version and in a PNG/JPG/JPEG/GIF format.<br/><br/>To get the "thumb" version of an imgsrc, select the graphic with the desired image on the tabletop and call the <code>${COMMANDS.GET_IMGSRC}</code> command.`
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === TOKEN_SIDE) {
-      if (!REGEX.NEW_SIDE.test(values[0])) {
+      if (!REGEX.NEW_SIDE.test(effectValues[0])) {
         throw new Error(
-          `<code>${values[0]}</code> is not a valid value. When using the <code>${TOKEN_SIDE}</code> effect type, you must pass in an integer, a plus sign <code>+</code>, or a minus sign <code>-</code>.`
+          `<code>${effectValues[0]}</code> is not a valid value. When using the <code>${TOKEN_SIDE}</code> effect type, you must pass in an integer, a plus sign <code>+</code>, or a minus sign <code>-</code>.`
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === BAR) {
-      if (values.length !== 2) {
+      if (effectValues.length !== 2) {
         throw new Error(
           `When using the <code>${BAR}</code> effect type, you must pass in a comma separated list of two values. The first value must be the bar target, and the second value must be the new value of the bar.`
         );
       }
 
-      if (!REGEX.BAR_NUMBER.test(values[0])) {
+      if (!REGEX.BAR_NUMBER.test(effectValues[0])) {
         throw new Error(
-          `<code>${values[0]}</code> is not a valid bar. When using the <code>${BAR}</code> effect type, the first value must be the string <code>bar</code> immediately followed by the number 1, 2, or 3.`
+          `<code>${effectValues[0]}</code> is not a valid bar. When using the <code>${BAR}</code> effect type, the first value must be the string <code>bar</code> immediately followed by the number 1, 2, or 3.`
         );
       }
 
-      if (!REGEX.BAR_VALUE.test(values[1])) {
+      if (!REGEX.BAR_VALUE.test(effectValues[1])) {
         throw new Error(
-          `<code>${values[1]}</code> is not a value value. When using the <code>${BAR}</code> effect type, the new value for the bar target must be either a number or string, a plus sign <code>+</code> followed by a number, or a minus sign <code>-</code> followed by a number.`
+          `<code>${effectValues[1]}</code> is not a value value. When using the <code>${BAR}</code> effect type, the new value for the bar target must be either a number or string, a plus sign <code>+</code> followed by a number, or a minus sign <code>-</code> followed by a number.`
         );
       }
 
-      return values;
+      return effectValues;
     }
 
     if (type === FX) {
-      if (/\-/.test(values[0])) {
-        const [fxType, fxColor] = values[0].split("-");
+      if (/\-/.test(effectValues[0])) {
+        const [fxType, fxColor] = effectValues[0].split("-");
 
         if (!FX_TYPES.includes(fxType.toLowerCase())) {
           throw new Error(
@@ -496,13 +533,16 @@ const BarThresholds = (function () {
           );
         }
 
-        return values;
+        return effectValues;
       } else {
-        const customFx = findObjs({ _type: "custfx", name: values[0] })[0];
+        const customFx = findObjs({
+          _type: "custfx",
+          name: effectValues[0],
+        })[0];
 
         if (!customFx) {
           throw new Error(
-            `<code>${values[0]}</code> is not a valid custom FX. Make sure the custom FX exists in the campaign and that the spelling and lettercase is correct.`
+            `<code>${effectValues[0]}</code> is not a valid custom FX. Make sure the custom FX exists in the campaign and that the spelling and lettercase is correct.`
           );
         }
 
@@ -824,7 +864,7 @@ const BarThresholds = (function () {
     const newColor =
       auraValues[2].length === 7
         ? auraValues[2]
-        : formatHexColor(auraValues[2]);
+        : getLonghandHex(auraValues[2]);
     const newShowPlayers = /^true$/i.test(auraValues[3]);
     const auraToSet = {};
 
@@ -864,7 +904,17 @@ const BarThresholds = (function () {
   }
 
   function setCurrentTokenSide(token, side) {
-    const tokenSides = token.get("sides").split("|").map(decodeURIComponent);
+    const tokenSides = _.map(token.get("sides").split("|"), decodeURIComponent);
+    if (tokenSides.length === 1 && !tokenSides[0]) {
+      sendErrorMessage(
+        `${
+          token.get("name") || "Unnamed Token"
+        } is not a multi-sided/rollable token and cannot have its side updated.`
+      );
+
+      return;
+    }
+
     const currentSide = token.get("currentSide");
     let sideToGet = 0;
 
@@ -889,20 +939,17 @@ const BarThresholds = (function () {
         break;
     }
 
-    if (!tokenSides[sideToGet]) {
-      sendErrorMessage(
-        `Could not update multi-sided/rollable token side for ${token.get(
-          "name"
-        )}. Side at index <code>${sideToGet}</code> does not exist.`
-      );
-      return;
-    }
-
-    if (sideToGet !== currentSide) {
+    if (tokenSides[sideToGet] && sideToGet !== currentSide) {
       token.set({
         imgsrc: getCleanImgsrc(tokenSides[sideToGet]),
         currentSide: sideToGet,
       });
+    } else if (!tokenSides[sideToGet]) {
+      sendErrorMessage(
+        `Could not update multi-sided/rollable token side for ${
+          token.get("name") || "Unnamed Token"
+        }. Side at index <code>${sideToGet}</code> does not exist.`
+      );
     }
   }
 
@@ -939,13 +986,9 @@ const BarThresholds = (function () {
 
     switch (effectType) {
       case ADD_MARKER:
-        setMarkers(token, ADD_MARKER, effectValues);
-        break;
       case REMOVE_MARKER:
-        setMarkers(token, REMOVE_MARKER, effectValues);
-        break;
       case ADD_REMOVE_MARKER:
-        setMarkers(token, ADD_REMOVE_MARKER, effectValues);
+        setMarkers(token, effectType, effectValues);
         break;
       case SCALE:
         setScale(token, effectValues);
@@ -955,7 +998,7 @@ const BarThresholds = (function () {
         const newTint =
           effectValues[0].length === 7
             ? effectValues[0]
-            : formatHexColor(effectValues[0]);
+            : getLonghandHex(effectValues[0]);
 
         if (newTint !== currentTint) {
           token.set("tint_color", newTint);
