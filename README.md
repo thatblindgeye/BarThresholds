@@ -33,8 +33,8 @@ This dialog determines which tokens a threshold will affect when it runs. The po
 - **All tokens**: The threshold will affect every token.
 - **Except selected tokens**: The threshold will affect all tokens except ones that are selected when the threshold is created.
 - **Only selected tokens**: The threshold will affect only the tokens that are selected when the threshold is created.
-- **GM Tokens**: The threshold will affect only tokens controlled by the GM. This includes tokens that do not have any players listed in the "Can Be Edited & Controlled By" field.
-- **Player Tokens**: The threshold will affect only tokens controlled by at least one non-GM player, or by "all players".
+- **GM tokens**: The threshold will affect only tokens controlled by the GM. This includes tokens that do not have any players listed in the "Can Be Edited & Controlled By" field or tokens not linked to a character sheet.
+- **Player tokens**: The threshold will affect only tokens controlled by at least one non-GM player, or by "all players".
 
 When choosing the "Only selected tokens" or "Except selected tokens" option, the selected tokens' names are stored in the threshold data. These names are used to check whether a token is a valid target when the threshold runs.
 
@@ -68,7 +68,7 @@ These two dialogs determine what effect will occur when a comparison returns `tr
 
 #### Add marker(s), Remove marker(s)
 
-`<comma separated list of marker names>`
+`[comma separated list of marker names]`
 e.g. `red,blue`
 
 These effect types will either add or remove the specified token markers to the threshold target. When the `Remove marker(s)` effect type is selected, all instances of the specified token markers will be removed from the threshold target.
@@ -79,7 +79,7 @@ Due to how custom markers must be set on tokens, a custom marker's tag will be r
 
 #### Add marker(s) and Remove marker(s)
 
-`<comma separated list of markers to add & comma separated list of markers to remove>`
+`[comma separated list of markers to add & comma separated list of markers to remove]`
 e.g. `red, blue & yellow, green`
 
 This will first add the specified markers to the threshold target, then remove all instances of the specified token markers.
@@ -88,11 +88,11 @@ Only valid marker names are allowed, otherwise an error will be whispered to the
 
 #### Move to layer
 
-`<gmlayer|map|tokens>`
+`[gmlayer|map|tokens]`
 
 This will move the threshold target's token to the specified layer.
 
-The "gmlayer" value alias is `gm`, the "map" value alias is `background`, and the "tokens" layer alias is `objects`.
+The `gmlayer` layer alias is `gm`, the `map` layer alias is `background`, and the `tokens` layer alias is `objects`.
 
 #### Remove token
 
@@ -102,7 +102,8 @@ This is the only effect type whose value can be left blank. While a value can be
 
 #### Spawn FX
 
-`<type-color|custom FX name>`
+`[type-color|custom FX name]`
+e.g. `bomb-blood` or `BloodiedFX`
 
 This will spawn an FX centered on the threshold target.
 
@@ -114,12 +115,12 @@ FX that require a second point to be chosen (such as `beam`, `breath`, `splatter
 
 #### Update aura 1, Update aura 2
 
-`<0|radius, shape, color, optional show to players boolean>`
+`[0|radius, shape, transparent|HEX color, optional show to players boolean]`
 e.g. `5, circle, #ff0` or `5, circle, #ffff00, false`
 
 These will update one of the two auras on the threshold target.
 
-Passing in a value of `0` will turn the aura off on the threshold target.
+Passing in a value of `0`, either on its own or to the `radius` argument, will turn the aura off on the threshold target.
 
 The `radius` value must be a positive integer or decimal. The `shape` value must be either `circle` or `square`. The `color` value must be either `transparent` or a valid shorthand (3 characters) or longhand (6 characters) HEX value following a hash `#`.
 
@@ -127,7 +128,7 @@ By default, an aura radius is set to not be shown to players, so this value can 
 
 #### Update bar value
 
-`<bar1|bar2|bar3, new value with optional + or - prefix>`
+`[bar1|bar2|bar3, new value with optional + or - prefix]`
 e.g. `bar1, 5` or `bar1, +2`
 
 This will update a bar value on the threshold target.
@@ -138,19 +139,19 @@ Passing in a value with a prefixing `+` or `-` will add or subtract the specifie
 
 #### Update multi-sided/rollable token side
 
-`<integer|next|previous|random>`
+`[integer|next|previous|random]`
 
 This will update the current side for a multi-sided/rollable token.
 
 When passing in an integer, the integer must be based on the side's position within the rollable token. For example, if you want to update a token's side to their second available side you would pass in `2`.
 
-If the current token side is the last side available for the token and "next" is passed in, the token will be updated to its first side. If the current token side is the first side available for the token and "previous" is passed in, the token will be updated to its last side.
+If the current token side is the last side available for the token and `next` is passed in, the token will be updated to its first side. If the current token side is the first side available for the token and `previous` is passed in, the token will be updated to its last side.
 
-The "next" value alias is `+`, the "previous" value alis is `-` or `prev`, and the "random" value alis is `?`.
+The `next` value alias is `+`, the `previous` value alis is `-` or `prev`, and the `random` value alis is `?`.
 
 #### Update tint color
 
-`<transparent|HEX color>`
+`[transparent|HEX color]`
 e.g. `#ff0` or `#ffff00`
 
 This will update the tint color for the threshold target.
@@ -159,9 +160,9 @@ A HEX color can either be shorthand (3 characters) or longhand (6 characters) fo
 
 #### Update token image
 
-`<valid image url>`
+`[valid image url]`
 
-Similar to the `Update multi-sided/rollable token side` effect type, except this can be ran on non-rollable tokens to update the image of the token. This will permanently update the token's image.
+Similar to the "Update multi-sided/rollable token side" effect type, except this can be ran on non-rollable tokens to update the image of the token. This will permanently update the token's image.
 
 When passing in an image URL as a value, you must pass in a URL for an image that is currently in your campaign, and it must be a "thumb" image.
 
@@ -169,7 +170,7 @@ In order to get a valid image URL, place the token with the image you want on th
 
 #### Update token scale
 
-`<positive integer or decimal with optional * prefix or px suffix>`
+`[positive integer or decimal with optional * prefix or px suffix]`
 e.g. `5`, `*2`, or `150px`
 
 This will update the scale of the threshold target's token.
@@ -184,7 +185,7 @@ When only a single value is passed in for this effect type, the value will updat
 
 #### Custom command
 
-This will allow you to run a custom command from another script you have installed. Keep in mind that you cannot run a custom command that relies on any selected tokens.
+This will allow you to run a custom command from another script you have installed. You cannot run a custom command that relies on any selected tokens.
 
 Due to how the BarThresholds script handles splitting apart its own commands to parse the various parameters, you must use the HTML entities for vertical pipes `|` and commas `,` when entering a custom command value. The HTML entitiy for vertical pipes is `&#124;`, and the HTML entity for commas is `&#44;`.
 
@@ -202,11 +203,11 @@ After clicking the "Delete threshold" button, a dialog asking you to confirm the
 
 `!thresh image`
 
-This will return a valid image URL of the selected token(s), which can be used for the `Update token image` effect type.
+This will return a valid image URL of the selected token(s), which can be used for the "Update token image" effect type.
 
 ### External
 
-`!thresh external|<optional boolean>`
+`!thresh external|[optional boolean]`
 
 By default, thresholds will run when a bar value change event within the BarThresholds script occurs, or when the exposed `BarThresholds.runThresholds` method is called in an external script (see the "Running Thresholds in External Scripts" section further below). Calling `!thresh external|false` will update to this behavior.
 
