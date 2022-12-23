@@ -2,7 +2,7 @@
  * BarThresholds
  *
  * Version 1.2
- * Last updated: December 15, 2022
+ * Last updated: December 23, 2022
  * Author: thatblindgeye
  * GitHub: https://github.com/thatblindgeye
  */
@@ -17,7 +17,7 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
 
   const VERSION = "1.2";
-  const LAST_UPDATED = 1671108520274;
+  const LAST_UPDATED = 1671803097887;
   const THRESH_DISPLAY_NAME = `BarThresholds v${VERSION}`;
   const THRESH_CONFIG_NAME = "BarThresholds Config";
 
@@ -731,14 +731,14 @@ const BarThresholds = (function () {
     const barMax = parseFloat(token.get(`${bar}_max`));
 
     if (
-      (/%$/.test(compareValue) && !isNaN(parseInt(compareValue))) ||
-      (/(0\.\d+|1\.0)/.test(compareValue) && !isNaN(parseFloat(compareValue)))
+      (/%$/.test(compareValue) || /(0\.\d+|1\.0)/.test(compareValue)) &&
+      !isNaN(parseInt(compareValue))
     ) {
       if (isNaN(barMax)) {
         sendErrorMessage(
           `${token.get(
             "name"
-          )} does not have a valid maximum set for <code>${bar}</code>. Tokens must have a maximum set for a bar when using a percentage comparison value, and the maximum must be an integer or decimal.`
+          )} does not have a valid maximum set for <code>${bar}</code>. Tokens must have a maximum set for a bar when using a percentage comparison value, and the maximum must be an integer or decimal.<br/><br/>If you are using the Beyond20 extension and are linking HP between D&D Beyond and Roll20, ignore this message.`
         );
         return;
       }
