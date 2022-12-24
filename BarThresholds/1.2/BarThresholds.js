@@ -735,11 +735,6 @@ const BarThresholds = (function () {
       !isNaN(parseInt(compareValue))
     ) {
       if (isNaN(barMax)) {
-        sendErrorMessage(
-          `${token.get(
-            "name"
-          )} does not have a valid maximum set for <code>${bar}</code>. Tokens must have a maximum set for a bar when using a percentage comparison value, and the maximum must be an integer or decimal.<br/><br/>If you are using the Beyond20 extension and are linking HP between D&D Beyond and Roll20, ignore this message.`
-        );
         return;
       }
 
