@@ -187,9 +187,7 @@ When only a single value is passed in for this effect type, the value will updat
 
 This will allow you to run a custom command from another script you have installed. You cannot run a custom command that relies on any selected tokens.
 
-Due to how the BarThresholds script handles splitting apart its own commands to parse the various parameters, you must use the HTML entities for vertical pipes `|` and commas `,` when entering a custom command value. The HTML entitiy for vertical pipes is `&#124;`, and the HTML entity for commas is `&#44;`.
-
-For example, to enter a custom command such as `!prefix keyword|option1, option2`, you would have to enter `!prefix keyword&#124;option1&#44; option2`.
+Due to how the BarThresholds script handles splitting apart its own commands to parse the various parameters, you must use the HTML entities for vertical pipes `|` and commas `,` when entering a custom command value. The HTML entitiy for vertical pipes is `&#124` followed by a trailing semi-colon `;`, and the HTML entity for commas is `&#44` followed by a semi-colon. Check out <a href="https://wiki.roll20.net/HTML_Entities">HTML entities</a> for more information.
 
 ## Editing and Deleting Thresholds
 
