@@ -1,10 +1,9 @@
 /**
  * BarThresholds
  *
- * Version 1.2
- * Last updated: December 23, 2022
  * Author: thatblindgeye
  * GitHub: https://github.com/thatblindgeye
+ *
  */
 
 const BarThresholds = (function () {
@@ -17,7 +16,7 @@ const BarThresholds = (function () {
   // --------------------------------------------------------------------------
 
   const VERSION = "1.2";
-  const LAST_UPDATED = 1671803097887;
+  const LAST_UPDATED = 1713738514031;
   const THRESH_DISPLAY_NAME = `BarThresholds v${VERSION}`;
   const THRESH_CONFIG_NAME = "BarThresholds Config";
 
@@ -1083,6 +1082,10 @@ const BarThresholds = (function () {
     _.each(state.BarThresholds[bar], (threshold) => {
       const tokenId = tokenObj._id || tokenObj.id;
       const token = getObj("graphic", tokenId);
+      if (token.get("layer") !== "objects") {
+        return
+      };
+
       const tokenName = token.get("name");
       const tokenBarValue = token.get(`${bar}_value`);
       const isGmToken = checkIsGmToken(token);
